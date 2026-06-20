@@ -11,16 +11,26 @@ pub mod sensors;
 #[cfg(target_os = "windows")]
 use sensors::msr_rapl;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "model")))]
 use sensors::powercap_rapl;
+
+#[cfg(all(target_os = "linux", feature = "model"))]
+use {sensors::model, sensors::DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES, sensors::DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES};
 
 /// Create a new [`Sensor`] instance with the default sensor available,
 /// with its default options.
 pub fn get_default_sensor() -> impl sensors::Sensor {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(feature = "model")))]
     return powercap_rapl::PowercapRAPLSensor::new(
         powercap_rapl::DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES,
         powercap_rapl::DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES,
+        false,
+    );
+
+    #[cfg(all(target_os = "linux", feature = "model"))]
+    return model::ModelSensor::new(
+        DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES,
+        DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES,
         false,
     );
 

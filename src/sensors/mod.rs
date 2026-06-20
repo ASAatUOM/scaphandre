@@ -7,10 +7,19 @@
 pub mod msr_rapl;
 #[cfg(target_os = "windows")]
 use msr_rapl::get_msr_value;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux",not(feature = "model")))]
 pub mod powercap_rapl;
+
+// TODO see if necessary, moved from powercap_repl to avoid compilation issues
+pub const DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES: u16 = 1;
+pub const DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES: u16 = 1;
+
+#[cfg(all(target_os = "linux",feature = "model"))]
+pub mod model;
+
 pub mod units;
 pub mod utils;
+
 #[cfg(target_os = "linux")]
 use procfs::{CpuInfo, CpuTime, KernelStats};
 use std::{collections::HashMap, error::Error, fmt, fs, mem::size_of_val, str, time::Duration};

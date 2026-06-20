@@ -2,10 +2,14 @@
 
 use clap::{ArgAction, Parser, Subcommand};
 use colored::Colorize;
-use scaphandre::{exporters, sensors::Sensor};
+use scaphandre::{exporters, sensors::Sensor,
+                 sensors::DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES, sensors::DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES};
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux",not(feature = "model")))]
 use scaphandre::sensors::powercap_rapl;
+
+#[cfg(all(target_os = "linux",feature = "model"))]
+use scaphandre::sensors::model;
 
 #[cfg(target_os = "windows")]
 use scaphandre::sensors::msr_rapl;
@@ -63,14 +67,15 @@ struct Cli {
 
     /// Maximum memory size allowed, in KiloBytes, for storing energy consumption of each **domain**.
     /// Only available for the RAPL sensor (on Linux).
-    #[cfg(target_os = "linux")]
-    #[arg(long, default_value_t = powercap_rapl::DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES)]
+    #[cfg(all(target_os = "linux"))] // TODO do something with this
+    #[arg(long, default_value_t = DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES)]
     sensor_buffer_per_domain_max_kb: u16,
 
     /// Maximum memory size allowed, in KiloBytes, for storing energy consumption of each **socket**.
     /// Only available for the RAPL sensor (on Linux).
-    #[cfg(target_os = "linux")]
-    #[arg(long, default_value_t = powercap_rapl::DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES)]
+    //#[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux"))] // TODO do something with this
+    #[arg(long, default_value_t = DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES)]
     sensor_buffer_per_socket_max_kb: u16,
 }
 
@@ -289,7 +294,7 @@ fn build_sensor(
     vm: bool,
     sensor: Option<String>,
 ) -> impl Sensor {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux",not(feature = "model")))]
     let rapl_sensor = || {
         powercap_rapl::PowercapRAPLSensor::new(
             sensor_buffer_per_socket_max_kb,
@@ -298,17 +303,37 @@ fn build_sensor(
         )
     };
 
+    #[cfg(all(target_os = "linux", feature = "model"))]
+    let model_sensor = || {model::ModelSensor::new(
+        sensor_buffer_per_socket_max_kb,
+        sensor_buffer_per_domain_max_kb,
+        vm,
+    )};
+
     #[cfg(target_os = "windows")]
     let msr_sensor_win = msr_rapl::MsrRAPLSensor::new;
 
     match sensor.as_deref() {
-        Some("powercap_rapl") => {
-            #[cfg(target_os = "linux")]
+        Some("model") =>{
+            #[cfg(all(target_os = "linux", feature = "model"))]
             {
-                rapl_sensor()
+                return model_sensor();
+            }
+
+            #[cfg(not(all(target_os = "linux", feature = "model")))]
+            {
+                panic!("Model sensor is only available on Linux with the model feature enabled");
+            }
+        }
+        Some("powercap_rapl") => {
+            #[cfg(all(target_os = "linux",not(feature = "model")))]
+            {
+                return rapl_sensor();
             }
             #[cfg(not(target_os = "linux"))]
-            panic!("Invalid sensor: Scaphandre's powercap_rapl only works on Linux")
+            panic!("Invalid sensor: Scaphandre's powercap_rapl only works on Linux");
+            #[cfg(feature = "model")]
+            panic!("Model feature is enabled");
         }
         Some("msr") => {
             #[cfg(target_os = "windows")]
@@ -320,8 +345,11 @@ fn build_sensor(
         }
         Some(s) => panic!("Unknown sensor type {}", s),
         None => {
-            #[cfg(target_os = "linux")]
+            #[cfg(all(target_os = "linux",not(feature = "model")))]
             return rapl_sensor();
+
+            #[cfg(all(target_os = "linux",feature = "model"))]
+            return model_sensor();
 
             #[cfg(target_os = "windows")]
             return msr_sensor_win();

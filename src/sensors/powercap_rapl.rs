@@ -9,7 +9,7 @@ use std::{env, fs};
 
 use super::units::Unit;
 
-pub const DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES: u16 = 1;
+pub const DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES: u16 = 1; // TODO remove or change
 pub const DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES: u16 = 1;
 
 /// This is a Sensor type that relies on powercap and rapl linux modules
