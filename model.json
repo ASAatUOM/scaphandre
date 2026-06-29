@@ -1,0 +1,22 @@
+{
+  "terms": [
+    {
+      "coefficient": [2.5, -1.0],
+      "power": [3.0, 2.0],
+      "path": "/proc/stat",
+      "word_no": [1, 2]
+    },
+    {
+      "coefficient": [4.7, 0.5],
+      "power": [1.0, 2.0],
+      "path": "/proc/meminfo",
+      "word_no": [1, 4]
+    },
+    {
+      "coefficient": [1.2],
+      "power": [1.0],
+      "path": "/proc/loadavg",
+      "word_no": [0]
+    }
+  ]
+}

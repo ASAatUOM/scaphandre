@@ -23,6 +23,7 @@ pub mod utils;
 #[cfg(target_os = "linux")]
 use procfs::{CpuInfo, CpuTime, KernelStats};
 use std::{collections::HashMap, error::Error, fmt, fs, mem::size_of_val, str, time::Duration};
+use serde::Deserialize;
 #[allow(unused_imports)]
 use sysinfo::{CpuExt, Pid, System, SystemExt};
 use sysinfo::{DiskExt, DiskType};
@@ -68,6 +69,8 @@ pub struct Topology {
     pub domains_names: Option<Vec<String>>,
     /// Sensor-specific data needed in the topology
     pub _sensor_data: HashMap<String, String>,
+    #[cfg(feature = "model")]
+    pub model: Model
 }
 
 impl RecordGenerator for Topology {
@@ -155,6 +158,8 @@ impl Topology {
             buffer_max_kbytes: 1,
             domains_names: None,
             _sensor_data: sensor_data,
+            #[cfg(feature = "model")]
+            model: Default::default(),
         }
     }
 
@@ -1542,6 +1547,29 @@ impl fmt::Display for Record {
     }
 }
 
+/// The terms read from a file and their corresponding coefficients and power
+/// The vectors should all be of the same length, vectors are used since accessing virtual files
+/// multiple times can result in different readings
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize, Clone)]
+pub struct FileTerm {
+    // scaling coefficients
+    pub coefficient : Vec<f64>,
+    // powers the terms are raised to
+    pub power: Vec<f64>,
+    // file path
+    pub path: String,
+    // which (whitespace delimited) words corresponds to a term in the file
+    pub word_no: Vec<usize>
+}
+
+/// Struct representing a model
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct Model{
+    pub terms : Vec<FileTerm>,
+}
+
 #[derive(Debug)]
 pub struct CPUStat {
     user: u64,
@@ -1634,8 +1662,8 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "model"))]
     fn read_topology_stats() {
-        #[cfg(target_os = "linux")]
         let sensor = powercap_rapl::PowercapRAPLSensor::new(8, 8, false);
         #[cfg(not(target_os = "linux"))]
         let sensor = msr_rapl::MsrRAPLSensor::new();
@@ -1644,6 +1672,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "model"))]
     fn read_core_stats() {
         #[cfg(target_os = "linux")]
         let sensor = powercap_rapl::PowercapRAPLSensor::new(8, 8, false);
@@ -1658,6 +1687,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "model"))]
     fn read_socket_stats() {
         #[cfg(target_os = "linux")]
         let sensor = powercap_rapl::PowercapRAPLSensor::new(8, 8, false);
