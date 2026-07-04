@@ -23,6 +23,7 @@ pub mod utils;
 #[cfg(target_os = "linux")]
 use procfs::{CpuInfo, CpuTime, KernelStats};
 use std::{collections::HashMap, error::Error, fmt, fs, mem::size_of_val, str, time::Duration};
+use std::cell::Cell;
 use serde::Deserialize;
 #[allow(unused_imports)]
 use sysinfo::{CpuExt, Pid, System, SystemExt};
@@ -55,9 +56,11 @@ pub trait RecordReader {
 /// Owns a vector of CPUSocket structs representing each socket.
 #[derive(Debug, Clone)]
 pub struct Topology {
-    /// The CPU sockets found on the host, represented as CPUSocket instances attached to this topology
+    /// The CPU sockets found on the host, represented as CPUSocket
+    /// instances attached to this topology
     pub sockets: Vec<CPUSocket>,
-    /// ProcessTrack instance that keeps track of processes running on the host and CPU stats associated
+    /// ProcessTrack instance that keeps track of processes
+    /// running on the host and CPU stats associated
     pub proc_tracker: ProcessTracker,
     /// CPU usage stats buffer
     pub stat_buffer: Vec<CPUStat>,
@@ -1547,9 +1550,23 @@ impl fmt::Display for Record {
     }
 }
 
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize, Clone)]
+pub struct Term {
+    // linear scaling coefficient
+    pub coefficient: f64,
+    // power the term is raised to
+    pub power: f64,
+    // which (whitespace delimited) words corresponds to the term in the file
+    pub word_no: usize,
+    #[serde(skip)] // the last read value of the term (used to get difference)
+    pub last_read_value : Cell<f64>,
+}
+
 /// The terms read from a file and their corresponding coefficients and power
 /// The vectors should all be of the same length, vectors are used since accessing virtual files
 /// multiple times can result in different readings
+/*
 #[cfg(feature = "model")]
 #[derive(Debug, Deserialize, Clone)]
 pub struct FileTerm {
@@ -1560,14 +1577,32 @@ pub struct FileTerm {
     // file path
     pub path: String,
     // which (whitespace delimited) words corresponds to a term in the file
-    pub word_no: Vec<usize>
+    pub word_no: Vec<usize>,
+    // last read val
+    pub previous: Vec<u64>
+}
+
+ */
+
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize, Clone)]
+pub struct FileTerms {
+    // file path
+    pub path: String,
+    // terms whose value are read from the file
+    pub terms: Vec<Term>
 }
 
 /// Struct representing a model
 #[cfg(feature = "model")]
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Model{
-    pub terms : Vec<FileTerm>,
+    // list of terms that make up a linear/polynomial model
+    pub file_terms: Vec<FileTerms>,
+    // value of the last record produced by read_record(), necessary to give monotonically increasing
+    // records as scaphandre expects
+    #[serde(skip)]
+    pub last_read_value: Cell<i128>,
 }
 
 #[derive(Debug)]
