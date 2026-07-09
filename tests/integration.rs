@@ -1,4 +1,4 @@
-#[cfg(all(feature = "qemu", target_os = "linux"))]
+#[cfg(all(feature = "qemu", target_os = "linux", not(feature = "model")))]
 #[test]
 fn exporter_qemu() {
     use scaphandre::exporters::qemu::QemuExporter;

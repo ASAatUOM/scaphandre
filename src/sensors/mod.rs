@@ -23,7 +23,9 @@ pub mod utils;
 #[cfg(target_os = "linux")]
 use procfs::{CpuInfo, CpuTime, KernelStats};
 use std::{collections::HashMap, error::Error, fmt, fs, mem::size_of_val, str, time::Duration};
+#[cfg(feature = "model")]
 use std::cell::Cell;
+#[cfg(feature = "model")]
 use serde::Deserialize;
 #[allow(unused_imports)]
 use sysinfo::{CpuExt, Pid, System, SystemExt};
