@@ -83,6 +83,9 @@ struct Cli {
     /// does nothing when model is not active, not guarding with cfg to avoid complications
     #[arg(long, default_value_t=false, global = true)]
     use_polynomial: bool,
+
+    #[arg(short, long)]
+    model_file: Option<String>
 }
 
 /// Defines the possible subcommands, one per exporter.
@@ -248,7 +251,8 @@ fn parse_cli_and_run_exporter() {
         cli.sensor_buffer_per_domain_max_kb,
         cli.vm,
         cli.sensor,
-        cli.use_polynomial
+        cli.use_polynomial,
+        cli.model_file
     );
     let mut exporter = build_exporter(cli.exporter, &sensor);
     if !cli.no_header {
@@ -301,6 +305,7 @@ fn build_sensor(
     vm: bool,
     sensor: Option<String>,
     use_polynomial: bool,
+    model_file: Option<String>,
 ) -> impl Sensor {
     #[cfg(all(target_os = "linux",not(feature = "model")))]
     let rapl_sensor = || {
@@ -316,6 +321,7 @@ fn build_sensor(
         sensor_buffer_per_socket_max_kb,
         sensor_buffer_per_domain_max_kb,
         vm,
+        model_file,
         use_polynomial
     )};
 

@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::error::Error;
 
 pub struct ModelSensor{
-    use_polynomial: bool
+    use_polynomial: bool,
+    model_file: Option<String>
 }
 
 impl ModelSensor{
@@ -12,12 +13,16 @@ impl ModelSensor{
         _buffer_per_socket_max_kbytes: u16,
         _buffer_per_domain_max_kbytes: u16,
         _virtual_machine: bool,
+        model_file: Option<String>,
         use_poly: bool
     ) -> ModelSensor{
         ModelSensor{
-            use_polynomial: use_poly
+            use_polynomial: use_poly,
+            model_file
         }
     }
+
+
 }
 
 // returns (cbusy,ctotal)
@@ -37,8 +42,15 @@ impl Sensor for ModelSensor{
     fn get_topology(&self) -> Box<Option<Topology>> {
         let sensor_data = HashMap::new();
         let mut topology = Topology::new(sensor_data);
+
+        // model file path
+        let path = self
+            .model_file
+            .as_deref()
+            .unwrap_or("RaspberryPiModel.json");
+
         // open file
-        let file = match std::fs::File::open("RaspberryPiModel.json"){
+        let file = match std::fs::File::open(path){
             Ok(file) => file,
             Err(_error) => {
                 return Box::new(None);
