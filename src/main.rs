@@ -77,6 +77,12 @@ struct Cli {
     #[cfg(all(target_os = "linux"))] // TODO do something with this
     #[arg(long, default_value_t = DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES)]
     sensor_buffer_per_socket_max_kb: u16,
+
+    /// Whether to use linear model or polynomial model
+    /// use linear by default
+    /// does nothing when model is not active, not guarding with cfg to avoid complications
+    #[arg(long, default_value_t=false, global = true)]
+    use_polynomial: bool,
 }
 
 /// Defines the possible subcommands, one per exporter.
@@ -242,6 +248,7 @@ fn parse_cli_and_run_exporter() {
         cli.sensor_buffer_per_domain_max_kb,
         cli.vm,
         cli.sensor,
+        cli.use_polynomial
     );
     let mut exporter = build_exporter(cli.exporter, &sensor);
     if !cli.no_header {
@@ -293,6 +300,7 @@ fn build_sensor(
     sensor_buffer_per_domain_max_kb: u16,
     vm: bool,
     sensor: Option<String>,
+    use_polynomial: bool,
 ) -> impl Sensor {
     #[cfg(all(target_os = "linux",not(feature = "model")))]
     let rapl_sensor = || {
@@ -308,6 +316,7 @@ fn build_sensor(
         sensor_buffer_per_socket_max_kb,
         sensor_buffer_per_domain_max_kb,
         vm,
+        use_polynomial
     )};
 
     #[cfg(target_os = "windows")]

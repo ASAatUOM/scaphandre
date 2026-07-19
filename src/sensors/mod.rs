@@ -27,6 +27,7 @@ use std::{collections::HashMap, error::Error, fmt, fs, mem::size_of_val, str, ti
 use std::cell::Cell;
 #[cfg(feature = "model")]
 use serde::Deserialize;
+
 #[allow(unused_imports)]
 use sysinfo::{CpuExt, Pid, System, SystemExt};
 use sysinfo::{DiskExt, DiskType};
@@ -1586,25 +1587,40 @@ pub struct FileTerm {
 
  */
 
-#[cfg(feature = "model")]
-#[derive(Debug, Deserialize, Clone)]
-pub struct FileTerms {
-    // file path
-    pub path: String,
-    // terms whose value are read from the file
-    pub terms: Vec<Term>
-}
-
 /// Struct representing a model
 #[cfg(feature = "model")]
-#[derive(Debug, Deserialize, Clone, Default)]
-pub struct Model{
-    // list of terms that make up a linear/polynomial model
-    pub file_terms: Vec<FileTerms>,
-    // value of the last record produced by read_record(), necessary to give monotonically increasing
-    // records as scaphandre expects
+#[derive(Debug,Deserialize,Clone,Default)]
+struct Model {
+
+    linear: Linear,
+    polynomial: Polynomial,
+
+    #[serde(skip)] // whether to use linear model or polynomial model
+    use_linear: bool,
     #[serde(skip)]
-    pub last_read_value: Cell<i128>,
+    last_cbusy: Cell<u64>,
+    #[serde(skip)]
+    last_ctot: Cell<u64>,
+    #[serde(skip)]
+    total: Cell<f64>,
+    #[serde(skip)]
+    last_reading: Cell<f64>,
+}
+
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize,Clone,Default)]
+struct Linear {
+    u: f64,
+    c: f64,
+}
+
+#[cfg(feature = "model")]
+#[derive(Debug, Deserialize,Clone,Default)]
+struct Polynomial {
+    intercept: f64,
+    #[warn(dead_code)]
+    degree: String,
+    coefficients: Vec<f64>,
 }
 
 #[derive(Debug)]

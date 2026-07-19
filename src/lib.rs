@@ -32,6 +32,7 @@ pub fn get_default_sensor() -> impl sensors::Sensor {
         DEFAULT_BUFFER_PER_SOCKET_MAX_KBYTES,
         DEFAULT_BUFFER_PER_DOMAIN_MAX_KBYTES,
         false,
+        false,
     );
 
     #[cfg(target_os = "windows")]

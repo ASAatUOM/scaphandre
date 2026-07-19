@@ -1,10 +1,10 @@
 use crate::sensors::utils::current_system_time_since_epoch;
 use crate::sensors::{units, CPUSocket, Domain, Model, Record, RecordReader, Sensor, Topology};
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::error::Error;
 
 pub struct ModelSensor{
+    use_polynomial: bool
 }
 
 impl ModelSensor{
@@ -12,10 +12,25 @@ impl ModelSensor{
         _buffer_per_socket_max_kbytes: u16,
         _buffer_per_domain_max_kbytes: u16,
         _virtual_machine: bool,
+        use_poly: bool
     ) -> ModelSensor{
         ModelSensor{
+            use_polynomial: use_poly
         }
     }
+}
+
+// returns (cbusy,ctotal)
+fn get_cpu_utilisation()->(u64, u64) {
+    let contents = std::fs::read_to_string("/proc/stat").expect("Error reading /proc/stat");
+    let mut words = contents.split_whitespace().take(5);
+    words.next();
+    let cuser = words.next().unwrap().parse::<u64>().unwrap();
+    let cnice = words.next().unwrap().parse::<u64>().unwrap();
+    let csystem = words.next().unwrap().parse::<u64>().unwrap();
+    let cidle = words.next().unwrap().parse::<u64>().unwrap();
+    let cbusy = cuser+cnice+csystem;
+    (cbusy,cbusy+cidle)
 }
 
 impl Sensor for ModelSensor{
@@ -23,7 +38,7 @@ impl Sensor for ModelSensor{
         let sensor_data = HashMap::new();
         let mut topology = Topology::new(sensor_data);
         // open file
-        let file = match std::fs::File::open("model.json"){
+        let file = match std::fs::File::open("RaspberryPiModel.json"){
             Ok(file) => file,
             Err(_error) => {
                 return Box::new(None);
@@ -38,41 +53,14 @@ impl Sensor for ModelSensor{
             }
         };
 
+        model.use_linear = !self.use_polynomial;
+        model.last_reading.set(current_system_time_since_epoch().as_secs_f64());
+
         // read initial values
-        for fterm in model.file_terms.iter_mut(){
-            fterm.terms.sort_by_key(|term|term.word_no); // sort to be able to use .split_whitespace() iterator
+        let cval = get_cpu_utilisation();
+        model.last_cbusy.set(cval.0);
+        model.last_ctot.set(cval.1);
 
-            // read file
-            let content = match std::fs::read_to_string(&fterm.path){
-                Ok(content) => content,
-                Err(_err)=>{
-                    panic!("could not read term's file");
-                }
-            };
-
-            let mut words = content.split_whitespace();
-            let mut current = 0;
-            // init last_read_value field of terms
-            for term in fterm.terms.iter_mut(){
-
-                match words.nth(term.word_no - current) {
-                    None => {
-                        panic!("Could not read word {} in {}", term.word_no, fterm.path);
-                    }
-                    Some(word) => {
-                        term.last_read_value = match word.parse::<f64>() {
-                            Ok(val) => { Cell::from(val) }
-                            Err(_) => {
-                                panic!("Could not parse word {} in {}", term.word_no, fterm.path);
-                            }
-                        };
-                    }
-                };
-                current = term.word_no + 1;
-            }
-
-        }
-        model.last_read_value.set(0);
         topology.model = model;
         Box::new(Some(topology))
     }
@@ -90,62 +78,47 @@ impl Sensor for ModelSensor{
     }
 }
 
-// TODO see if calling RecordReader irregularly (varying time intervals) messes with linear or polynomial models
 impl RecordReader for Topology {
     fn read_record(&self) -> Result<Record, Box<dyn Error>> {
 
-        let mut tot : f64 = 0f64;
+        let mut output: f64 = 0f64;
+        let cutil = get_cpu_utilisation();
+        // calculate cpu utilisation
+        let util: f64 = ((cutil.0-self.model.last_cbusy.get()) as f64) /((cutil.1-self.model.last_ctot.get()) as f64);
+        let current_time = current_system_time_since_epoch();
+        // update values
+        self.model.last_cbusy.set(cutil.0);
+        self.model.last_ctot.set(cutil.1);
 
-        // read initial values
-        for fterm in self.model.file_terms.iter(){
-
-            // read file
-            let content = match std::fs::read_to_string(&fterm.path){
-                Ok(content) => content,
-                Err(_err)=>{
-                    panic!("could not read term's file");
-                }
-            };
-
-            let mut words = content.split_whitespace();
-            let mut current = 0;
-            // init last_read_value field of terms
-            for term in fterm.terms.iter(){
-                // update term.last_read_value
-                let prev = term.last_read_value.get();
-                let new_val:f64 = match words.nth(term.word_no - current) {
-                    None => {
-                        panic!("Could not read word {} in {}", term.word_no, fterm.path);
-                    }
-                    Some(word) => {
-                        match word.parse::<f64>() {
-                            Ok(val) => { val }
-                            Err(_) => {
-                                panic!("Could not parse word {} in {}", term.word_no, fterm.path);
-                            }
-                        }
-                    }
-                };
-                // adding term value to total
-                tot += term.coefficient*((new_val-prev).powf(term.power));
-                // updating last read value
-                term.last_read_value.set(new_val);
-                current = term.word_no + 1;
+        if self.model.use_linear {
+            // use linear model
+            let lin = &self.model.linear;
+            output += lin.u*util + lin.c;
+        }else{
+            // use polynomial model
+            output += self.model.polynomial.intercept;
+            for i in 0..self.model.polynomial.coefficients.len(){
+                output += self.model.polynomial.coefficients[i]*util.powi(i as i32);
             }
 
         }
-        let result = (tot as i128)+self.model.last_read_value.get();
-        self.model.last_read_value.set(result);
+        let tot = &self.model.total;
+        output *= current_time.as_secs_f64()-self.model.last_reading.get(); // scaling according to time
+        output *= 1000000.0; // converting to MicroJoule to minimize rounding error
+        tot.set(tot.get()+output);// updating last reading time
+
+        self.model.last_reading.set(current_time.as_secs_f64());
+
         Ok(Record::new(
-            current_system_time_since_epoch(),
-            result.to_string(),// Note: scaphandre expects the record value to be a digit
+            current_time,
+            (tot.get() as u64).to_string(), // Note: scaphandre expects the record value to be a digit
             units::Unit::MicroJoule
         ))
     }
 
 }
 
-// TODO see what to do with these, currently not needed
+// TODO see what to do with these
 impl RecordReader for CPUSocket{
     fn read_record(&self) -> Result<Record, Box<dyn Error>> {
         todo!()
