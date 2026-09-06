@@ -1587,7 +1587,26 @@ pub struct FileTerm {
 
  */
 
-/// Struct representing a model
+// Deserialization from string to f64
+#[cfg(feature = "model")]
+fn deserialize_f64_from_string<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    value.parse().map_err(serde::de::Error::custom)
+}
+// Deserialization from string to u32
+#[cfg(feature = "model")]
+fn deserialize_u32_from_string<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    value.parse().map_err(serde::de::Error::custom)
+}
+
+/// Structs representing a model
 #[cfg(feature = "model")]
 #[derive(Debug,Deserialize,Clone,Default)]
 struct Model {
@@ -1610,16 +1629,22 @@ struct Model {
 #[cfg(feature = "model")]
 #[derive(Debug, Deserialize,Clone,Default)]
 struct Linear {
+    #[serde(deserialize_with = "deserialize_f64_from_string")]
     u: f64,
+
+    #[serde(deserialize_with = "deserialize_f64_from_string")]
     c: f64,
 }
-
 #[cfg(feature = "model")]
 #[derive(Debug, Deserialize,Clone,Default)]
 struct Polynomial {
+    #[serde(deserialize_with = "deserialize_f64_from_string")]
     intercept: f64,
+
+    #[serde(deserialize_with = "deserialize_u32_from_string")]
     #[warn(dead_code)]
-    degree: String,
+    degree: u32,
+
     coefficients: Vec<f64>,
 }
 

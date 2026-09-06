@@ -58,12 +58,26 @@ impl Sensor for ModelSensor{
         };
         // read model file
         let reader = std::io::BufReader::new(file);
+        let models: HashMap<String,Model> = match serde_json::from_reader(reader){
+            Ok(models) => models,
+            Err(error) => {
+                return Box::new(None);
+            }
+        };
+
+        let mut model = models
+            .into_values()
+            .next()
+            .expect("expected exactly one model");
+        /*
         let mut model: Model = match serde_json::from_reader(reader){
             Ok(model) => model,
             Err(_error) => {
                 return Box::new(None);
             }
         };
+
+         */
 
         model.use_linear = !self.use_polynomial;
         model.last_reading.set(current_system_time_since_epoch().as_secs_f64());
